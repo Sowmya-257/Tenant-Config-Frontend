@@ -32,7 +32,10 @@ export default function App() {
   // Live SSE streaming push state
   const [sseConnected, setSseConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState(null);
-  const [lastPropagationMs, setLastPropagationMs] = useState(24);
+  const [lastPropagationMs, setLastPropagationMs] = useState(() => {
+    const saved = localStorage.getItem('moveinsync_last_propagation_ms');
+    return saved ? Number(saved) : 24;
+  });
 
   const showToast = (message, type = 'info') => {
     const id = Date.now() + Math.random();
@@ -93,9 +96,23 @@ export default function App() {
             setSseConnected(true);
           } else if (data.eventType === 'DELTA' || data.eventType === 'SNAPSHOT') {
             const now = Date.now();
-            const publishedAt = data.timestamp ? new Date(data.timestamp).getTime() : now - 22;
-            const latency = Math.max(8, now - publishedAt);
+            let publishedAt = now;
+            if (data.timestampEpochMs) {
+              publishedAt = Number(data.timestampEpochMs);
+            } else if (data.timestamp) {
+              const parsed = typeof data.timestamp === 'number'
+                ? (data.timestamp < 1e11 ? data.timestamp * 1000 : data.timestamp)
+                : new Date(data.timestamp).getTime();
+              if (!isNaN(parsed) && parsed > 0) {
+                publishedAt = parsed;
+              }
+            }
+            // Genuine measured latency: browser arrival time minus backend publish time
+            const latency = Math.max(1, Math.round(now - publishedAt));
             setLastPropagationMs(latency);
+            try {
+              localStorage.setItem('moveinsync_last_propagation_ms', String(latency));
+            } catch {}
             setLastEvent(data);
             showToast(
               `Live Push: Version v${data.version} propagated via SSE (${latency}ms)!`,

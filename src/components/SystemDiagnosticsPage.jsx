@@ -23,27 +23,49 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
   useEffect(() => {
     async function loadData() {
       try {
-        const ver = await api.getVersion(user.tenant);
+        const [ver, history] = await Promise.all([
+          api.getVersion(user.tenant),
+          api.getHistory(user.tenant),
+        ]);
         setCurrentVersion(ver);
+        if (Array.isArray(history) && history.length > 0) {
+          const historicalEvents = history
+            .sort((a, b) => b.version - a.version)
+            .slice(0, 10)
+            .map((h) => ({
+              id: h.id || h.version,
+              timestamp: h.timestamp ? new Date(h.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString(),
+              version: h.version,
+              type: 'DELTA',
+              latency: lastPropagationMs || 24,
+              author: h.author || 'system',
+              reason: h.reason || 'Committed change set',
+            }));
+          setEventsLog((prev) => (prev.length === 0 ? historicalEvents : prev));
+        }
       } catch {}
     }
     loadData();
-  }, [user.tenant]);
+  }, [user.tenant, lastPropagationMs]);
 
   // Log incoming SSE push events
   useEffect(() => {
     if (lastEvent) {
+      const eventTime = lastEvent.timestamp
+        ? new Date(typeof lastEvent.timestamp === 'number' && lastEvent.timestamp < 1e11 ? lastEvent.timestamp * 1000 : lastEvent.timestamp).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
       setEventsLog((prev) => [
         {
           id: Date.now(),
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: eventTime,
           version: lastEvent.version,
           type: lastEvent.eventType || 'DELTA',
           latency: lastPropagationMs || 24,
           author: lastEvent.delta?.author || 'system',
           reason: lastEvent.delta?.reason || 'Live propagation',
         },
-        ...prev.slice(0, 9),
+        ...prev.filter((ev) => ev.version !== lastEvent.version).slice(0, 9),
       ]);
     }
   }, [lastEvent, lastPropagationMs]);
