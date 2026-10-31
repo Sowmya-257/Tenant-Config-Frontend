@@ -32,10 +32,7 @@ export default function App() {
   // Live SSE streaming push state
   const [sseConnected, setSseConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState(null);
-  const [lastPropagationMs, setLastPropagationMs] = useState(() => {
-    const saved = localStorage.getItem('moveinsync_last_propagation_ms');
-    return saved ? Number(saved) : 24;
-  });
+  const [lastPropagationMs, setLastPropagationMs] = useState(null);
 
   const showToast = (message, type = 'info') => {
     const id = Date.now() + Math.random();
@@ -84,7 +81,7 @@ export default function App() {
 
     const calculateLatency = (timestamp, epochMs) => {
       const now = Date.now();
-      let publishedAt = now;
+      let publishedAt = null;
       if (epochMs) {
         publishedAt = Number(epochMs);
       } else if (timestamp) {
@@ -95,8 +92,24 @@ export default function App() {
           publishedAt = parsed;
         }
       }
+      if (!publishedAt) return null;
       const diff = Math.round(now - publishedAt);
-      return diff > 0 && diff < 5000 ? diff : Math.max(14, (Math.abs(diff) % 30) + 16);
+      return diff >= 0 ? diff : 1;
+    };
+
+    const handleHeartbeat = (event) => {
+      setSseConnected(true);
+      try {
+        const data = JSON.parse(event.data);
+        if (data.timestamp || data.timestampEpochMs) {
+          const ping = calculateLatency(data.timestamp, data.timestampEpochMs);
+          if (ping != null) {
+            setLastPropagationMs(ping);
+          }
+        }
+      } catch (err) {
+        console.warn('Heartbeat parse error', err);
+      }
     };
 
     try {
@@ -106,6 +119,8 @@ export default function App() {
         setSseConnected(true);
       };
 
+      eventSource.addEventListener('heartbeat', handleHeartbeat);
+
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -113,22 +128,28 @@ export default function App() {
             setSseConnected(true);
             if (data.timestamp || data.timestampEpochMs) {
               const ping = calculateLatency(data.timestamp, data.timestampEpochMs);
-              setLastPropagationMs(ping);
+              if (ping != null) {
+                setLastPropagationMs(ping);
+              }
             }
-          } else if (data.eventType === 'DELTA' || data.eventType === 'SNAPSHOT') {
+          } else if (data.eventType === 'DELTA' || data.eventType === 'SNAPSHOT' || data.eventType === 'FULL_SNAPSHOT') {
             const latency = calculateLatency(data.timestamp, data.timestampEpochMs);
-            setLastPropagationMs(latency);
+            if (latency != null) {
+              setLastPropagationMs(latency);
+            }
             try {
-              localStorage.setItem('moveinsync_last_propagation_ms', String(latency));
-              const latenciesMap = JSON.parse(localStorage.getItem('moveinsync_ver_latencies') || '{}');
-              if (data.version) {
-                latenciesMap[data.version] = latency;
-                localStorage.setItem('moveinsync_ver_latencies', JSON.stringify(latenciesMap));
+              if (latency != null) {
+                localStorage.setItem('moveinsync_last_propagation_ms', String(latency));
+                const latenciesMap = JSON.parse(localStorage.getItem('moveinsync_ver_latencies') || '{}');
+                if (data.version) {
+                  latenciesMap[data.version] = latency;
+                  localStorage.setItem('moveinsync_ver_latencies', JSON.stringify(latenciesMap));
+                }
               }
             } catch {}
             setLastEvent(data);
             showToast(
-              `Live Push: Version v${data.version} propagated via SSE (${latency}ms)!`,
+              `Live Push: Version v${data.version} propagated via SSE (${latency != null ? latency + 'ms' : 'real-time'})!`,
               'success'
             );
           }
@@ -139,13 +160,16 @@ export default function App() {
 
       eventSource.onerror = () => {
         setSseConnected(false);
+        setLastPropagationMs(null);
       };
     } catch (e) {
       setSseConnected(false);
+      setLastPropagationMs(null);
     }
 
     return () => {
       if (eventSource) {
+        eventSource.removeEventListener('heartbeat', handleHeartbeat);
         eventSource.close();
       }
     };
@@ -195,35 +219,52 @@ export default function App() {
     <div>
       {/* Top Navigation Bar */}
       <header className="nav">
-        <div className="brand">
-          <div className="brand-dot" />
-          <span>MoveInSync</span>
-          
-          {/* Quick Tenant Switcher */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>/</span>
-            <select
-              className="select"
-              value={user.tenant}
-              onChange={(e) => handleSwitchTenant(e.target.value)}
-              style={{
-                padding: '3px 8px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                color: '#60a5fa',
-                background: 'var(--panel-hover)',
-                borderColor: 'var(--border)',
-                width: 'auto',
-                cursor: 'pointer',
-              }}
-              title="Switch company to view its custom configurations"
+        <div className="nav-top-row">
+          <div className="brand">
+            <div className="brand-dot" />
+            <span>MoveInSync</span>
+            
+            {/* Quick Tenant Switcher */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>/</span>
+              <select
+                className="select"
+                value={user.tenant}
+                onChange={(e) => handleSwitchTenant(e.target.value)}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  color: '#60a5fa',
+                  background: 'var(--panel-hover)',
+                  borderColor: 'var(--border)',
+                  width: 'auto',
+                  cursor: 'pointer',
+                }}
+                title="Switch company to view its custom configurations"
+              >
+                {TENANTS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* User Info & Logout */}
+          <div className="user-badge">
+            <span className={`badge ${roleBadge}`}>{roleLabel}</span>
+            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{user.username}</span>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleLogout}
+              title="Sign out"
+              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
             >
-              {TENANTS.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+              <LogOut size={13} />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
 
@@ -260,21 +301,6 @@ export default function App() {
             <span>System &amp; SDK</span>
           </button>
         </nav>
-
-        {/* User Info & Logout */}
-        <div className="user-badge">
-          <span className={`badge ${roleBadge}`}>{roleLabel}</span>
-          <span style={{ color: 'var(--text)', fontWeight: 500 }}>{user.username}</span>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleLogout}
-            title="Sign out"
-            style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-          >
-            <LogOut size={13} />
-            <span>Logout</span>
-          </button>
-        </div>
       </header>
 
       {/* Main Content Area */}

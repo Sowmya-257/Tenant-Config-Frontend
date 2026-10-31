@@ -4,7 +4,6 @@ import {
   Save,
   AlertCircle,
   ArrowLeft,
-  Plus,
   Trash2,
   Building,
   X,
@@ -206,6 +205,26 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
         return;
       }
 
+      // Pre-validate allowedItems (e.g. cab.types.allowed)
+      const def = definitions.find((d) => d.key === c.settingKey);
+      if (def?.validationRulesJson) {
+        try {
+          const rules = JSON.parse(def.validationRulesJson);
+          if (rules.allowedItems && Array.isArray(rules.allowedItems)) {
+            const items = c.value.split(',').map((s) => s.trim()).filter(Boolean);
+            const allowedUpper = rules.allowedItems.map((a) => a.toUpperCase());
+            const unauthorized = items.filter((item) => !allowedUpper.includes(item.toUpperCase()));
+            if (unauthorized.length > 0) {
+              showToast(
+                `Validation failed for '${c.settingKey}': unauthorized item '${unauthorized.join(', ')}'. Allowed options: [${rules.allowedItems.join(', ')}]`,
+                'error'
+              );
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+
       if (c.level === 'CLIENT') {
         batchItems.push({
           settingKey: c.settingKey,
@@ -268,6 +287,25 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
     if (!canaryValue.trim()) {
       showToast('Please enter a canary value.', 'error');
       return;
+    }
+
+    const canaryDef = definitions.find((d) => d.key === canaryKey);
+    if (canaryDef?.validationRulesJson) {
+      try {
+        const rules = JSON.parse(canaryDef.validationRulesJson);
+        if (rules.allowedItems && Array.isArray(rules.allowedItems)) {
+          const items = canaryValue.split(',').map((s) => s.trim()).filter(Boolean);
+          const allowedUpper = rules.allowedItems.map((a) => a.toUpperCase());
+          const unauthorized = items.filter((item) => !allowedUpper.includes(item.toUpperCase()));
+          if (unauthorized.length > 0) {
+            showToast(
+              `Validation failed for '${canaryKey}': unauthorized item '${unauthorized.join(', ')}'. Allowed options: [${rules.allowedItems.join(', ')}]`,
+              'error'
+            );
+            return;
+          }
+        }
+      } catch (e) {}
     }
 
     setSubmitting(true);
@@ -407,15 +445,24 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
               {changes.map((change, index) => {
                 const def = definitions.find((d) => d.key === change.settingKey);
-
                 let validationInfo = '';
+                let rules = {};
                 try {
-                  const rules = JSON.parse(def?.validationRulesJson || '{}');
+                  rules = JSON.parse(def?.validationRulesJson || '{}');
                   if (rules.minMinutes !== undefined) validationInfo = `Allowed duration: ${rules.minMinutes}m to ${rules.maxMinutes}m`;
                   else if (rules.allowOvernight !== undefined) validationInfo = `Time window format: HH:mm-HH:mm (Overnight: ${rules.allowOvernight})`;
                   else if (rules.allowedValues) validationInfo = `Allowed options: ${rules.allowedValues.join(', ')}`;
                   else if (rules.allowedItems) validationInfo = `Permitted vehicle types: ${rules.allowedItems.join(', ')}`;
                 } catch {}
+
+                const currentItems = (change.value || '')
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+
+                const unauthorizedItems = rules.allowedItems && Array.isArray(rules.allowedItems)
+                  ? currentItems.filter((it) => !rules.allowedItems.map((a) => a.toUpperCase()).includes(it.toUpperCase()))
+                  : [];
 
                 return (
                   <div
@@ -459,7 +506,7 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
                     </div>
 
                     {/* Setting Key & Hierarchy Level */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                    <div className="form-row-2col">
                       <div>
                         <label className="form-label">Setting</label>
                         <select
@@ -666,6 +713,77 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
                     {/* New Value & Validation Schema Notice */}
                     <div>
                       <label className="form-label">Value to Apply</label>
+                      {rules.allowedItems && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Quick Select Permitted Items (Click to toggle):
+                          </span>
+                          <div className="tag-pill-group">
+                            {rules.allowedItems.map((item) => {
+                              const isSelected = currentItems.some((i) => i.toUpperCase() === item.toUpperCase());
+                              return (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  className={`tag-pill ${isSelected ? 'active' : ''}`}
+                                  onClick={() => {
+                                    let updated;
+                                    if (isSelected) {
+                                      updated = currentItems.filter((i) => i.toUpperCase() !== item.toUpperCase());
+                                    } else {
+                                      updated = [...currentItems, item];
+                                    }
+                                    updateChange(change.id, 'value', updated.join(','));
+                                  }}
+                                  disabled={isReadOnly}
+                                >
+                                  {isSelected ? '✓ ' : '+ '} {item}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {rules.allowedValues && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Choose from Allowed Values:
+                          </span>
+                          <div className="tag-pill-group">
+                            {rules.allowedValues.map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                className={`tag-pill ${change.value === val ? 'active' : ''}`}
+                                onClick={() => updateChange(change.id, 'value', val)}
+                                disabled={isReadOnly}
+                              >
+                                {change.value === val ? '✓ ' : ''} {val}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {def?.type === 'BOOLEAN' && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <div className="tag-pill-group">
+                            {['true', 'false'].map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                className={`tag-pill ${change.value === val ? 'active' : ''}`}
+                                onClick={() => updateChange(change.id, 'value', val)}
+                                disabled={isReadOnly}
+                              >
+                                {change.value === val ? '✓ ' : ''} {val}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <input
                         type="text"
                         className="input"
@@ -676,7 +794,24 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
                         required
                         style={{ fontFamily: 'var(--mono)' }}
                       />
-                      {validationInfo && (
+
+                      {unauthorizedItems.length > 0 && (
+                        <div
+                          style={{
+                            fontSize: '0.8rem',
+                            color: '#f87171',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: '4px',
+                            padding: '6px 10px',
+                            marginTop: '6px',
+                          }}
+                        >
+                          ⚠️ Unauthorized item(s): <strong>{unauthorizedItems.join(', ')}</strong>. Permitted categories are: {rules.allowedItems.join(', ')}
+                        </div>
+                      )}
+
+                      {validationInfo && unauthorizedItems.length === 0 && (
                         <div style={{ fontSize: '0.75rem', color: '#a78bfa', marginTop: '4px' }}>
                           Schema Validation Rule: <code>{validationInfo}</code>
                         </div>
@@ -696,13 +831,12 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
                 disabled={isReadOnly}
                 style={{ width: '100%', borderStyle: 'dashed' }}
               >
-                <Plus size={15} />
                 <span>+ Add Another Setting / Change (In Same Version)</span>
               </button>
             </div>
 
             {/* Common Author and Reason fields for this Version */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px', marginBottom: '20px' }}>
+            <div className="form-row-author-reason">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Author</label>
                 <input
@@ -777,37 +911,138 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
                 Safely deploy a new value to <strong>pilot offices only</strong>. Other offices will remain on their current configuration until you verify and click <strong>Promote to All Offices</strong>.
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                <div>
-                  <label className="form-label">Setting to Roll Out</label>
-                  <select
-                    className="select"
-                    value={canaryKey}
-                    onChange={(e) => setCanaryKey(e.target.value)}
-                    disabled={isReadOnly}
-                  >
-                    {definitions.map((d) => (
-                      <option key={d.key} value={d.key}>
-                        {d.key} ({d.type}) — Default: {d.defaultValue}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {(() => {
+                const canaryDef = definitions.find((d) => d.key === canaryKey);
+                let canaryRules = {};
+                try {
+                  canaryRules = JSON.parse(canaryDef?.validationRulesJson || '{}');
+                } catch {}
+                const canaryCurrentItems = (canaryValue || '').split(',').map((s) => s.trim()).filter(Boolean);
+                const canaryUnauthorized = canaryRules.allowedItems && Array.isArray(canaryRules.allowedItems)
+                  ? canaryCurrentItems.filter((it) => !canaryRules.allowedItems.map((a) => a.toUpperCase()).includes(it.toUpperCase()))
+                  : [];
 
-                <div>
-                  <label className="form-label">Canary Pilot Value</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={canaryValue}
-                    onChange={(e) => setCanaryValue(e.target.value)}
-                    placeholder="e.g. 20m"
-                    disabled={isReadOnly}
-                    required
-                    style={{ fontFamily: 'var(--mono)' }}
-                  />
-                </div>
-              </div>
+                return (
+                  <div className="form-row-2col" style={{ marginBottom: '14px' }}>
+                    <div>
+                      <label className="form-label">Setting to Roll Out</label>
+                      <select
+                        className="select"
+                        value={canaryKey}
+                        onChange={(e) => setCanaryKey(e.target.value)}
+                        disabled={isReadOnly}
+                      >
+                        {definitions.map((d) => (
+                          <option key={d.key} value={d.key}>
+                            {d.key} ({d.type}) — Default: {d.defaultValue}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="form-label">Canary Pilot Value</label>
+                      {canaryRules.allowedItems && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Quick Select Permitted Items:
+                          </span>
+                          <div className="tag-pill-group">
+                            {canaryRules.allowedItems.map((item) => {
+                              const isSelected = canaryCurrentItems.some((i) => i.toUpperCase() === item.toUpperCase());
+                              return (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  className={`tag-pill ${isSelected ? 'active' : ''}`}
+                                  onClick={() => {
+                                    let updated;
+                                    if (isSelected) {
+                                      updated = canaryCurrentItems.filter((i) => i.toUpperCase() !== item.toUpperCase());
+                                    } else {
+                                      updated = [...canaryCurrentItems, item];
+                                    }
+                                    setCanaryValue(updated.join(','));
+                                  }}
+                                  disabled={isReadOnly}
+                                >
+                                  {isSelected ? '✓ ' : '+ '} {item}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {canaryRules.allowedValues && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            Choose from Allowed Values:
+                          </span>
+                          <div className="tag-pill-group">
+                            {canaryRules.allowedValues.map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                className={`tag-pill ${canaryValue === val ? 'active' : ''}`}
+                                onClick={() => setCanaryValue(val)}
+                                disabled={isReadOnly}
+                              >
+                                {canaryValue === val ? '✓ ' : ''} {val}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {canaryDef?.type === 'BOOLEAN' && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <div className="tag-pill-group">
+                            {['true', 'false'].map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                className={`tag-pill ${canaryValue === val ? 'active' : ''}`}
+                                onClick={() => setCanaryValue(val)}
+                                disabled={isReadOnly}
+                              >
+                                {canaryValue === val ? '✓ ' : ''} {val}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <input
+                        type="text"
+                        className="input"
+                        value={canaryValue}
+                        onChange={(e) => setCanaryValue(e.target.value)}
+                        placeholder="e.g. 20m"
+                        disabled={isReadOnly}
+                        required
+                        style={{ fontFamily: 'var(--mono)' }}
+                      />
+
+                      {canaryUnauthorized.length > 0 && (
+                        <div
+                          style={{
+                            fontSize: '0.8rem',
+                            color: '#f87171',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: '4px',
+                            padding: '6px 10px',
+                            marginTop: '6px',
+                          }}
+                        >
+                          ⚠️ Unauthorized item(s): <strong>{canaryUnauthorized.join(', ')}</strong>. Permitted categories are: {canaryRules.allowedItems.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Target Pilot Offices Dropdown & Chips */}
               <div style={{ marginBottom: '14px' }}>
@@ -862,7 +1097,7 @@ export default function EditConfigPage({ user, preselectedKey, onSaved, onCancel
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
+              <div className="form-row-author-reason">
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Author</label>
                   <input

@@ -72,7 +72,7 @@ export default function LoginPage({ onLogin }) {
           <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
             QUICK LOGIN:
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+          <div className="login-quick-grid">
             <button
               type="button"
               className="btn btn-secondary btn-sm"

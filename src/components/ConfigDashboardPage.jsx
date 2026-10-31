@@ -112,46 +112,6 @@ export default function ConfigDashboardPage({ user, onNavigateToEdit, showToast,
 
   return (
     <div>
-      {/* Live Push Streaming & Propagation Banner */}
-      <div
-        style={{
-          background: sseConnected ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-          border: `1px solid ${sseConnected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
-          borderRadius: 'var(--radius)',
-          padding: '10px 16px',
-          marginBottom: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '0.825rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: sseConnected ? '#34d399' : '#f87171',
-              boxShadow: sseConnected ? '0 0 8px #34d399' : 'none',
-            }}
-          />
-          <span>
-            <strong>Push-Based Live Propagation:</strong>{' '}
-            {sseConnected ? (
-              <span style={{ color: '#34d399' }}>Connected via SSE Stream (/api/v1/stream/{user.tenant})</span>
-            ) : (
-              <span style={{ color: '#f87171' }}>Reconnecting with Jitter...</span>
-            )}
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <span style={{ color: 'var(--text-muted)' }}>
-            Propagation SLA: <strong style={{ color: '#60a5fa' }}>{lastPropagationMs || '< 50'} ms</strong> (Target: &lt; 5,000 ms guarantee)
-          </span>
-        </div>
-      </div>
-
       {/* Active Canary Staged Rollout Banner (if active) */}
       {activeRollouts.map((rollout) => (
         <div
@@ -165,6 +125,7 @@ export default function ConfigDashboardPage({ user, onNavigateToEdit, showToast,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
             gap: '16px',
           }}
         >
@@ -218,7 +179,7 @@ export default function ConfigDashboardPage({ user, onNavigateToEdit, showToast,
               Hierarchy resolution rule: <code>SHIFT &rarr; OFFICE &rarr; CLIENT &rarr; GLOBAL</code> (Server-side resolved)
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span className="badge badge-green">Active Version: v{currentVersion}</span>
             <button
               className="btn btn-secondary btn-sm"
@@ -241,7 +202,7 @@ export default function ConfigDashboardPage({ user, onNavigateToEdit, showToast,
         </div>
 
         {/* Office & Shift Evaluator Filters */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: 'var(--bg)', padding: '12px 16px', borderRadius: 'var(--radius)' }}>
+        <div className="dashboard-filter-grid">
           <div>
             <label className="form-label">Evaluate For Office Campus:</label>
             <select

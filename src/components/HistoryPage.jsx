@@ -67,7 +67,7 @@ export default function HistoryPage({ user, onRollbackComplete, showToast }) {
               Live audit trail from Spring Boot database. Each row represents 1 version and all settings committed under it.
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span className="badge badge-green">Current: v{currentVersion}</span>
             <button
               className="btn btn-secondary btn-sm"

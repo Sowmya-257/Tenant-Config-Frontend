@@ -70,7 +70,7 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
           timestamp: eventTime,
           version: lastEvent.version,
           type: lastEvent.eventType || 'DELTA',
-          latency: lastPropagationMs || 24,
+          latency: lastPropagationMs != null ? lastPropagationMs : '< 1',
           author: lastEvent.delta?.author || 'system',
           reason: lastEvent.delta?.reason || 'Live propagation',
         },
@@ -100,7 +100,7 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
         </div>
 
         {/* 4 Architecture Pillars KPI Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+        <div className="diag-kpi-grid">
           {/* 1. Live SSE Push */}
           <div
             style={{
@@ -140,10 +140,10 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
               <Zap size={14} color="#60a5fa" />
             </div>
             <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#60a5fa', fontFamily: 'var(--mono)' }}>
-              {lastPropagationMs || 28} ms
+              {sseConnected ? (lastPropagationMs != null ? `${lastPropagationMs} ms` : 'Measuring...') : 'Disconnected'}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#34d399', marginTop: '4px' }}>
-              &check; SLA Guarantee: &lt; 5,000 ms
+            <div style={{ fontSize: '0.75rem', color: sseConnected ? '#34d399' : '#f87171', marginTop: '4px' }}>
+              {sseConnected ? '\u2713 SLA Guarantee: < 5,000 ms' : 'SSE Stream Offline'}
             </div>
           </div>
 
@@ -196,7 +196,7 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
       </div>
 
       {/* Grid: Live Propagation Log & Offline Resilience Simulator */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px', marginBottom: '16px' }}>
+      <div className="diag-two-col">
         {/* Live SSE Push Stream Log */}
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-header">
@@ -299,161 +299,6 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
           >
             {offlineSimulated ? 'Restore Online Server Connection' : 'Simulate Server Outage / Test Offline Cache'}
           </button>
-        </div>
-      </div>
-
-      {/* Automated Concurrency & Failure Test Suite Report */}
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h3 className="card-title">Automated Concurrency &amp; Benchmark Verifications</h3>
-            <p className="card-subtitle">18 Automated JUnit &amp; Benchmark Tests Verified on this Build</p>
-          </div>
-          <span className="badge badge-green" style={{ fontSize: '0.8rem' }}>
-            18/18 Tests Passing
-          </span>
-        </div>
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Test Suite / Verification</th>
-                <th>Requirement Addressed</th>
-                <th>Measured Result</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <strong>ConcurrencyAtomicChangeSetTest</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    8 concurrent reader threads executing tight loops during 50 atomic switches
-                  </div>
-                </td>
-                <td>Atomic change sets concurrency guarantee</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#34d399' }}>
-                  0 mixed states detected (100% atomic)
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-
-              <tr>
-                <td>
-                  <strong>PropagationAndScaleBenchmarkTest</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Mass-scale broadcast across 200 connected client service pods
-                  </div>
-                </td>
-                <td>5-second propagation guarantee</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#34d399' }}>
-                  30 ms total propagation (&lt;&lt; 5,000 ms SLA)
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-
-              <tr>
-                <td>
-                  <strong>MonotonicVersionTest</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Arrival of out-of-order delta v41 and duplicate delta v43 when on v43
-                  </div>
-                </td>
-                <td>Out-of-order &amp; duplicate message handling</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#60a5fa' }}>
-                  Stale deltas strictly rejected; v44 applied
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-
-              <tr>
-                <td>
-                  <strong>StagedRolloutTest</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Canary isolation to pilot offices [BLR-01] and promotion to all offices
-                  </div>
-                </td>
-                <td>Staged rollout &amp; tenant-wide promotion</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#60a5fa' }}>
-                  Pilot offices isolated; clean promotion to v6
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-
-              <tr>
-                <td>
-                  <strong>TenantIsolationSecurityTest</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Operator of Client A attempting to read/write Client B configurations
-                  </div>
-                </td>
-                <td>Authentication &amp; strict tenant isolation</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#f87171' }}>
-                  403 TenantAccessDeniedException blocked
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-
-              <tr>
-                <td>
-                  <strong>DiskSnapshotStoreTest</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Disk persistence and crash recovery of offline snapshot v10
-                  </div>
-                </td>
-                <td>Disk snapshot &amp; server-down behaviour</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#34d399' }}>
-                  100% settings restored from disk in 0.12 ms
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-
-              <tr>
-                <td>
-                  <strong>ValidationAndSafeChangesTest</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Pre-validation rejection of negative durations, invalid windows, and bad enums
-                  </div>
-                </td>
-                <td>Setting definitions &amp; validation rules</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#60a5fa' }}>
-                  4/4 bad change requests rejected before commit
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-
-              <tr>
-                <td>
-                  <strong>JitteredBackoffTest / SDK Resilience</strong>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Exponential backoff with randomized jitter factor (100ms to 5,000ms)
-                  </div>
-                </td>
-                <td>Reconnection with jitter</td>
-                <td style={{ fontFamily: 'var(--mono)', color: '#60a5fa' }}>
-                  Prevents thundering herd on server restart
-                </td>
-                <td>
-                  <span className="badge badge-green">&check; Verified</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
