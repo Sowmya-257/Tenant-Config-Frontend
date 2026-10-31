@@ -22,12 +22,67 @@ export const OFFICE_NAMES = {
 export const SHIFTS = ['MORNING', 'GENERAL', 'EVENING', 'NIGHT'];
 
 /**
+ * Returns Authorization header with JWT Bearer token if user is logged in
+ */
+export function getAuthHeaders(extraHeaders = {}) {
+  const headers = { ...extraHeaders };
+  try {
+    const saved = localStorage.getItem('mis_user');
+    if (saved) {
+      const u = JSON.parse(saved);
+      if (u && u.token) {
+        headers['Authorization'] = `Bearer ${u.token}`;
+      }
+    }
+  } catch {}
+  return headers;
+}
+
+/**
  * Direct HTTP API Client connected to Spring Boot Backend on /api/v1
  */
 export const api = {
+  // 0. Robust Authentication against backend
+  async login(username, password, tenantId, role) {
+    const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, tenantId, role }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Authentication failed (${res.status})`;
+      try {
+        const errObj = JSON.parse(errText);
+        errMsg = errObj.message || errObj.error || errMsg;
+      } catch {
+        if (errText) errMsg = errText;
+      }
+      throw new Error(errMsg);
+    }
+
+    return await res.json();
+  },
+
+  // Verify active JWT token
+  async verifySession(token) {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/verify`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+    return null;
+  },
+
   // 1. Get all definitions from backend with validation rules
   async getDefinitions() {
-    const res = await fetch(`${API_BASE}/api/v1/definitions`);
+    const res = await fetch(`${API_BASE}/api/v1/definitions`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) {
       throw new Error(`Failed to load definitions from backend (Status: ${res.status})`);
     }
@@ -36,7 +91,9 @@ export const api = {
 
   // 2. Get active monotonic version counter for a tenant
   async getVersion(tenantId) {
-    const res = await fetch(`${API_BASE}/api/v1/sync/version?tenantId=${encodeURIComponent(tenantId)}`);
+    const res = await fetch(`${API_BASE}/api/v1/sync/version?tenantId=${encodeURIComponent(tenantId)}`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) {
       throw new Error(`Failed to fetch version for ${tenantId} from backend`);
     }
@@ -50,7 +107,9 @@ export const api = {
     if (officeId) params.append('officeId', officeId);
     if (shiftId) params.append('shiftId', shiftId);
 
-    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/resolve?${params.toString()}`);
+    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/resolve?${params.toString()}`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) {
       throw new Error(`Backend resolution failed for ${key}`);
     }
@@ -63,7 +122,9 @@ export const api = {
     if (officeId) params.append('officeId', officeId);
     if (shiftId) params.append('shiftId', shiftId);
 
-    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/explain?${params.toString()}`);
+    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/explain?${params.toString()}`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) {
       throw new Error(`Explain resolution failed for ${key}`);
     }
@@ -116,7 +177,9 @@ export const api = {
 
   // 6. Get full audit history from backend database
   async getHistory(tenantId) {
-    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/history`);
+    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/history`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) {
       throw new Error(`Failed to load history for ${tenantId} from backend`);
     }
@@ -158,7 +221,7 @@ export const api = {
 
     const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/changeset`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
 
@@ -187,6 +250,7 @@ export const api = {
 
     const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/rollback?${params.toString()}`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     });
 
     if (!res.ok) {
@@ -207,7 +271,9 @@ export const api = {
 
   // 9. Staged Rollouts (Canary) API
   async listRollouts(tenantId) {
-    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/rollouts`);
+    const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/rollouts`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     return await res.json();
   },
@@ -223,6 +289,7 @@ export const api = {
 
     const res = await fetch(`${API_BASE}/api/v1/configs/${encodeURIComponent(tenantId)}/rollouts?${params.toString()}`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     });
 
     if (!res.ok) {
@@ -240,6 +307,7 @@ export const api = {
 
     const res = await fetch(`${API_BASE}/api/v1/rollouts/${rolloutId}/promote?${params.toString()}`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     });
 
     if (!res.ok) {
@@ -257,6 +325,7 @@ export const api = {
 
     const res = await fetch(`${API_BASE}/api/v1/rollouts/${rolloutId}/abort?${params.toString()}`, {
       method: 'POST',
+      headers: getAuthHeaders(),
     });
 
     if (!res.ok) {
@@ -269,7 +338,9 @@ export const api = {
   // 10. Actuator Metrics
   async getMetrics() {
     try {
-      const res = await fetch(`${API_BASE}/actuator/metrics`);
+      const res = await fetch(`${API_BASE}/actuator/metrics`, {
+        headers: getAuthHeaders(),
+      });
       if (res.ok) return await res.json();
     } catch {}
     return null;

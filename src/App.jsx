@@ -219,7 +219,8 @@ export default function App() {
     <div>
       {/* Top Navigation Bar */}
       <header className="nav">
-        <div className="nav-top-row">
+        {/* Left: Brand & Tenant Switcher */}
+        <div className="nav-left">
           <div className="brand">
             <div className="brand-dot" />
             <span>MoveInSync</span>
@@ -227,48 +228,51 @@ export default function App() {
             {/* Quick Tenant Switcher */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>/</span>
-              <select
-                className="select"
-                value={user.tenant}
-                onChange={(e) => handleSwitchTenant(e.target.value)}
-                style={{
-                  padding: '3px 8px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  color: '#60a5fa',
-                  background: 'var(--panel-hover)',
-                  borderColor: 'var(--border)',
-                  width: 'auto',
-                  cursor: 'pointer',
-                }}
-                title="Switch company to view its custom configurations"
-              >
-                {TENANTS.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              {user.role === 'ROLE_ADMIN' ? (
+                <select
+                  className="select"
+                  value={user.tenant}
+                  onChange={(e) => handleSwitchTenant(e.target.value)}
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#60a5fa',
+                    background: 'var(--panel-hover)',
+                    borderColor: 'var(--border)',
+                    width: 'auto',
+                    cursor: 'pointer',
+                  }}
+                  title="Switch company to view its custom configurations (Admin Global Access)"
+                >
+                  {TENANTS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#93c5fd',
+                    background: 'var(--panel-hover)',
+                    borderRadius: 'var(--radius)',
+                    border: '1px solid var(--border)',
+                  }}
+                  title={`${user.username} is isolated to ${user.tenant}`}
+                >
+                  {user.tenant}
+                </span>
+              )}
             </div>
-          </div>
-
-          {/* User Info & Logout */}
-          <div className="user-badge">
-            <span className={`badge ${roleBadge}`}>{roleLabel}</span>
-            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{user.username}</span>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleLogout}
-              title="Sign out"
-              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-            >
-              <LogOut size={13} />
-              <span>Logout</span>
-            </button>
           </div>
         </div>
 
-        <nav className="nav-links">
+        {/* Center: The 4 Navigation Tabs */}
+        <nav className="nav-center nav-links">
           <button
             className={`nav-btn ${tab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setTab('dashboard')}
@@ -301,6 +305,23 @@ export default function App() {
             <span>System &amp; SDK</span>
           </button>
         </nav>
+
+        {/* Right: User Badge & Logout */}
+        <div className="nav-right">
+          <div className="user-badge">
+            <span className={`badge ${roleBadge}`}>{roleLabel}</span>
+            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{user.username}</span>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleLogout}
+              title="Sign out"
+              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+            >
+              <LogOut size={13} />
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
       </header>
 
       {/* Main Content Area */}
