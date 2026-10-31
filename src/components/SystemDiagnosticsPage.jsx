@@ -39,7 +39,7 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
             .slice(0, 10)
             .map((h) => {
               const vNum = Number(h.version) || 1;
-              const vLatency = storedLatencies[vNum] || Math.max(14, ((vNum * 7 + 11) % 25) + 16);
+              const vLatency = storedLatencies[vNum] || null;
               return {
                 id: h.id || h.version,
                 timestamp: h.timestamp ? new Date(h.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString(),
@@ -239,9 +239,11 @@ export default function SystemDiagnosticsPage({ user, sseConnected, lastEvent, l
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span className="badge badge-green" style={{ fontFamily: 'var(--mono)', fontSize: '0.7rem' }}>
-                        {ev.latency} ms
-                      </span>
+                      {ev.latency != null && (
+                        <span className="badge badge-green" style={{ fontFamily: 'var(--mono)', fontSize: '0.7rem' }}>
+                          {ev.latency} ms
+                        </span>
+                      )}
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                         {ev.timestamp}
                       </div>
